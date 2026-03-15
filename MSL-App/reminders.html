@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MSL CRM Reminders</title>
+  <style>
+    :root{--brand:#1012a8;--brand2:#4f6bff;--bg:#f1f3ff;--radius:12px;--shadow:0 10px 25px rgba(0,0,0,.08);--side:230px}
+    *{box-sizing:border-box} body{margin:0;font-family:'Segoe UI',sans-serif;background:var(--bg)}
+    .sidebar{position:fixed;left:0;top:0;height:100vh;width:var(--side);background:linear-gradient(180deg,var(--brand),var(--brand2));color:#fff;padding-top:24px}
+    .mobile-head{display:none}.menu-btn{border:1px solid rgba(255,255,255,.45);background:transparent;color:#fff;border-radius:8px;padding:6px 10px;font-size:18px}
+    .sidebar h2{text-align:center;margin:0 0 24px}.nav-links a{display:block;color:#fff;text-decoration:none;padding:13px 24px;transition:background .2s ease,transform .2s ease}.nav-links a.active,.nav-links a:hover{background:rgba(255,255,255,.15)}
+    .main{margin-left:var(--side);padding:22px}
+    .top{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+    .title h2{margin:0;color:var(--brand)} .title p{margin:6px 0 0;color:#6b7280;font-size:13px}
+        .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .card{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;transition:transform .2s ease, box-shadow .2s ease}
+    .card h3{margin:0 0 4px;color:#1e293b}.meta{color:#64748b;font-size:13px;margin-bottom:8px}
+    .card:hover{transform:translateY(-2px);box-shadow:0 14px 26px rgba(15,23,42,.12)}
+    .list{background:#f8faff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;max-height:140px;overflow:auto;font-size:13px;line-height:1.45;white-space:pre-wrap}
+    .message{margin-top:10px;background:#fcfcff;border:1px dashed #cbd5e1;border-radius:10px;padding:10px;max-height:260px;overflow:auto;font-size:12px;line-height:1.45;white-space:pre-wrap}
+    .actions{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+    .btn{display:inline-block;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;color:#fff;background:#16a34a;border:none;cursor:pointer}
+    .btn.secondary{background:#2563eb}
+    @media (max-width:900px){.cards{grid-template-columns:1fr}} @media (max-width:700px){.sidebar{position:static;width:100%;height:auto;padding:8px 10px}.sidebar h2{display:none}.mobile-head{display:flex;align-items:center;justify-content:space-between;padding:2px 2px 8px}.mobile-head .brand{font-size:18px;font-weight:700}.nav-links{display:none;flex-direction:column;gap:6px;background:rgba(255,255,255,.12);border-radius:10px;padding:8px}.sidebar.open .nav-links{display:flex}.nav-links a{padding:10px;border-radius:8px}.main{margin-left:0;padding:12px}}
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="mobile-head">
+      <div class="brand">MSL CRM</div>
+      <button class="menu-btn" type="button" onclick="toggleMenu()">☰</button>
+    </div>
+    <h2>MSL CRM</h2>
+    <nav class="nav-links">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="schools.html">Schools</a>
+      <a href="employees.html">Employees</a>
+      <a class="active" href="reminders.html">Reminders</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <section class="top">
+      <div class="title"><h2>Tomorrow Follow-up Reminders</h2><p>One compiled WhatsApp message per employee (with full demo format)</p></div>
+      
+    </section>
+    <section id="cards" class="cards"></section>
+  </main>
+
+<script>
+const API='https://script.google.com/macros/s/AKfycbxC-Bee0hzkxAdBvgBxniEv7J9R8PvUoA8hWw7sSfu4HNqbNeE2btz3lVH4mMUv_hrv/exec';
+const role=(localStorage.getItem('role')||'').toLowerCase();
+if(role!=='admin') window.location='dashboard.html';
+const cards=document.getElementById('cards');
+const sidebarEl=document.querySelector('.sidebar');
+
+const pick=(r,keys)=>{for(const k of keys){if(r[k]!==undefined&&r[k]!==null&&String(r[k]).trim()!=='') return r[k]} return ''};
+const d=v=>{const t=String(v||'').trim(); if(!t) return ''; return t.includes('T')?t.split('T')[0]:t};
+const phone=v=>String(v||'').replace(/[^\d]/g,'');
+const isRealEmployee = (emp) => {
+  const e = String(emp||'').trim().toLowerCase();
+  return e && e !== 'unassigned' && e !== '-';
+};
+
+const tomorrow = new Date(Date.now()+86400000);
+const tomorrowDate = tomorrow.toISOString().split('T')[0];
+const dateStr = tomorrow.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+const dayStr = tomorrow.toLocaleDateString('en-US',{weekday:'long'});
+
+function buildCompiledMessage(employee, items){
+  const lines=[];
+  lines.push(`Good Evening Marketing Team, Demo bookings for ${dateStr}, ${dayStr} -`);
+  lines.push('');
+  items.forEach((it,idx)=>{
+    lines.push(`DEMO ${idx+1}-`);
+    lines.push(`Product - ${it.product||'Science Lab Kit'}`);
+    lines.push(`School name - ${it.school||'-'}`);
+    lines.push(`Follow-up Date - ${it.followDate||tomorrowDate}`);
+    lines.push(`Address - ${it.address||'-'}`);
+    lines.push(`Phone Number - ${it.schoolPhone||'-'}`);
+    lines.push(`Demo booked by - ${it.bookedBy||'Sir'}`);
+    lines.push(`Executive - ${employee}`);
+    lines.push('');
+  });
+  return lines.join('\n');
+}
+
+function copyText(text){
+  navigator.clipboard.writeText(text).then(()=>alert('Compiled reminder copied.')).catch(()=>alert('Copy failed.'));
+}
+
+async function load(){
+  const res=await fetch(API); const data=await res.json();
+  const grouped={};
+
+  data.forEach(r=>{
+    const followRaw=pick(r,['followDate','Follow Up Date','Follow-Up Date']);
+    const followDate=d(followRaw);
+    if(followDate!==tomorrowDate) return;
+
+    const emp=pick(r,['Employee Name','employee','employeeName'])||'Unassigned';
+    if(!isRealEmployee(emp)) return;
+
+    const empPhone=pick(r,['Employee Phone','employeePhone','Employee Contact','employeeContact','Phone Number']);
+    if(!grouped[emp]) grouped[emp]={phone:empPhone, items:[]};
+    if(!grouped[emp].phone&&empPhone) grouped[emp].phone=empPhone;
+
+    grouped[emp].items.push({
+      school:pick(r,['school','School Name','School']),
+      product:pick(r,['Product','product','Item']),
+      followDate,
+      address:pick(r,['address','Area','schoolAddress']),
+      schoolPhone:pick(r,['School Contact','contact','phone','Phone']),
+      bookedBy:pick(r,['Demo booked by','Booked By','bookedBy','Marketing Name'])
+    });
+  });
+
+  cards.innerHTML='';
+  const names=Object.keys(grouped).sort((a,b)=>a.localeCompare(b));
+  if(!names.length){
+    cards.innerHTML='<article class="card"><h3>No tomorrow follow-ups found</h3><div class="meta">No reminder messages to send.</div></article>';
+    return;
+  }
+
+  names.forEach(emp=>{
+    const g=grouped[emp];
+    const msg=buildCompiledMessage(emp,g.items);
+    const num=phone(g.phone);
+    const waLink = num
+      ? `https://wa.me/${num}?text=${encodeURIComponent(msg)}`
+      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+
+    const preview=g.items.map((it,i)=>`${i+1}. ${it.school||'-'} (${it.followDate||tomorrowDate})`).join('\n');
+
+    const card=document.createElement('article');
+    card.className='card';
+    card.innerHTML=`
+      <h3>${emp}</h3>
+      <div class="meta">Tomorrow demos: <b>${g.items.length}</b> | Employee Phone: <b>${num||'Select contact in WhatsApp'}</b></div>
+      <div class="list">${preview||'No school list.'}</div>
+      <div class="message">${msg}</div>
+      <div class="actions">
+        <a class="btn" target="_blank" rel="noopener" href="${waLink}">Send Compiled Reminder</a>
+        <button class="btn secondary" type="button">Copy Message</button>
+      </div>
+    `;
+    card.querySelector('button').onclick=()=>copyText(msg);
+    cards.appendChild(card);
+  });
+}
+
+load().catch(()=>cards.innerHTML='<article class="card">Unable to load reminder data.</article>');
+function toggleMenu(){ sidebarEl.classList.toggle('open'); }
+document.querySelectorAll('.nav-links a').forEach((link)=>link.addEventListener('click',()=>sidebarEl.classList.remove('open')));
+</script>
+</body>
+</html>

@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>School Profile</title>
+  <style>
+    :root {
+      --brand: #1012a8;
+      --bg: #f1f3ff;
+      --muted: #6b7280;
+      --shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      background: var(--bg);
+      padding: 14px;
+      color: #111827;
+    }
+
+    .backBtn {
+      margin-bottom: 14px;
+      background: var(--brand);
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .container {
+      width: min(100%, 1120px);
+      margin: auto;
+      background: white;
+      padding: clamp(16px, 3vw, 30px);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    h1 {
+      color: var(--brand);
+      margin-top: 0;
+      font-size: clamp(28px, 6vw, 48px);
+      line-height: 1.1;
+      text-transform: capitalize;
+      word-break: break-word;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .info {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .info p {
+      margin: 0;
+      background: #f7f8ff;
+      border-radius: 8px;
+      padding: 10px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .table-wrap {
+      margin-top: 14px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid #eef;
+      background: white;
+    }
+
+    .table-scroll { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      min-width: 980px;
+      border-collapse: collapse;
+    }
+
+    th {
+      background: var(--brand);
+      color: white;
+      padding: 12px;
+      font-size: 14px;
+      white-space: nowrap;
+      text-align: left;
+    }
+
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    tr:hover { background: #f7f8ff; }
+
+    .empty-state {
+      text-align: center;
+      color: var(--muted);
+      padding: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .info { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      .table-wrap {
+        border: 0;
+        background: transparent;
+      }
+
+      .table-scroll { overflow: visible; }
+
+      table,
+      tbody,
+      tr,
+      td {
+        display: block;
+        width: 100%;
+      }
+
+      table { min-width: 0; }
+      thead { display: none; }
+
+      tr {
+        background: white;
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+        margin-bottom: 12px;
+        padding: 8px 0;
+      }
+
+      td {
+        border-bottom: 1px solid #f1f2f8;
+        padding: 10px 12px;
+        display: grid;
+        grid-template-columns: 120px minmax(0, 1fr);
+        gap: 8px;
+        font-size: 13px;
+        word-break: break-word;
+      }
+
+      td::before {
+        content: attr(data-label);
+        font-weight: 700;
+        color: #1f2937;
+      }
+
+      tr td:last-child { border-bottom: 0; }
+
+      .empty-row {
+        padding: 0;
+        box-shadow: none;
+        background: transparent;
+      }
+
+      .empty-row td {
+        display: block !important;
+        border: 0;
+        text-align: center;
+        background: white;
+        border-radius: 12px;
+      }
+
+      .empty-row td::before { content: ''; display: none; }
+    }
+  </style>
+</head>
+<body>
+  <button class="backBtn" onclick="goBack()">← Back to Dashboard</button>
+
+  <div class="container">
+    <h1 id="schoolName"></h1>
+    <p class="subtitle">Complete CRM History</p>
+
+    <div class="info">
+      <p><b>Address:</b> <span id="address"></span></p>
+      <p><b>Conversion Chance:</b> <span id="chance"></span></p>
+      <p><b>Follow Up Date:</b> <span id="followDate"></span></p>
+    </div>
+
+    <h3>Visit History</h3>
+
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>School</th>
+              <th>Area</th>
+              <th>Date of Visit</th>
+              <th>Conversion Chance</th>
+              <th>Follow-Up</th>
+              <th>Visit Category</th>
+              <th>Demo</th>
+              <th>Customer Response</th>
+              <th id="empHeader" style="display:none;">Employee</th>
+            </tr>
+          </thead>
+          <tbody id="visitTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = 'https://script.google.com/macros/s/AKfycbxC-Bee0hzkxAdBvgBxniEv7J9R8PvUoA8hWw7sSfu4HNqbNeE2btz3lVH4mMUv_hrv/exec';
+
+    const role = (localStorage.getItem('role') || '').toLowerCase();
+    const employee = localStorage.getItem('employee') || '';
+    const employeeName = localStorage.getItem('name') || '';
+
+    if (!employee && !employeeName) {
+      window.location = 'index.html';
+    }
+
+    if (role === 'admin') {
+      document.getElementById('empHeader').style.display = 'table-cell';
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const schoolParam = decodeURIComponent(params.get('name') || '').trim();
+    const schoolFilter = schoolParam.toLowerCase();
+    document.getElementById('schoolName').innerText = schoolParam || 'School Profile';
+
+    const normalize = (value) => String(value || '').trim().toLowerCase();
+    const toDateOnly = (value) => {
+      const txt = String(value || '').trim();
+      if (!txt) return '';
+      return txt.includes('T') ? txt.split('T')[0] : txt;
+    };
+
+    const pick = (row, keys) => {
+      for (const key of keys) {
+        if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
+          return row[key];
+        }
+      }
+      return '';
+    };
+
+    const isSameEmployee = (sheetValue) => {
+      const sheet = normalize(sheetValue);
+      const localUser = normalize(employee);
+      const localName = normalize(employeeName);
+      return sheet === localUser || sheet === localName || sheet.includes(localUser) || sheet.includes(localName);
+    };
+
+    async function loadSchool() {
+      const table = document.getElementById('visitTable');
+      table.innerHTML = '';
+
+      try {
+        const res = await fetch(API);
+        const data = await res.json();
+        let count = 0;
+
+        data.forEach((row) => {
+          const school = pick(row, ['school', 'School Name', 'School']);
+          const address = pick(row, ['address', 'Area', 'schoolAddress']);
+          const visitDate = toDateOnly(pick(row, ['Date of Visit', 'visitDate']));
+          const visitCategory = pick(row, ['visitCategory', 'Visit Category']);
+          const demo = pick(row, ['Demo', 'demo', 'Demo Happened']);
+          const chance = pick(row, ['chance', 'Conversion Chance']);
+          const followDate = toDateOnly(pick(row, ['followDate', 'Follow Up Date', 'Follow-Up Date']));
+          const response = pick(row, ['Final Response', 'Customer Response']);
+          const rowEmployee = pick(row, ['Employee Name', 'employee', 'employeeName']);
+
+          if (!normalize(school).includes(schoolFilter)) return;
+          if (role !== 'admin' && !isSameEmployee(rowEmployee)) return;
+
+          if (count === 0) {
+            document.getElementById('address').innerText = address;
+            document.getElementById('chance').innerText = chance;
+            document.getElementById('followDate').innerText = followDate;
+          }
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td data-label="School">${school}</td>
+            <td data-label="Area">${address}</td>
+            <td data-label="Date of Visit">${visitDate}</td>
+            <td data-label="Conversion Chance">${chance}</td>
+            <td data-label="Follow-Up">${followDate}</td>
+            <td data-label="Visit Category">${visitCategory}</td>
+            <td data-label="Demo">${demo}</td>
+            <td data-label="Customer Response">${response}</td>
+            ${role === 'admin' ? `<td data-label="Employee">${rowEmployee}</td>` : ''}
+          `;
+          table.appendChild(tr);
+          count++;
+        });
+
+        if (count === 0) {
+          const colspan = role === 'admin' ? 9 : 8;
+          table.innerHTML = `<tr class="empty-row"><td colspan="${colspan}" class="empty-state">No school history found.</td></tr>`;
+        }
+      } catch (error) {
+        console.error('Failed to load school data:', error);
+        const colspan = role === 'admin' ? 9 : 8;
+        table.innerHTML = `<tr class="empty-row"><td colspan="${colspan}" class="empty-state">Unable to load data.</td></tr>`;
+      }
+    }
+
+    loadSchool();
+
+    function goBack() {
+      window.location = 'schools.html';
+    }
+  </script>
+</body>
+</html>

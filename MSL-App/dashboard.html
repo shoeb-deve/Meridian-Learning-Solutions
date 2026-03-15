@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MSL CRM Dashboard</title>
+  <style>
+    :root { --brand:#1012a8; --brand2:#4f6bff; --bg:#f1f3ff; --radius:12px; --shadow:0 10px 25px rgba(0,0,0,.08); --side:230px; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:'Segoe UI',sans-serif; background:var(--bg); color:#111827; }
+    .sidebar { position:fixed; left:0; top:0; height:100vh; width:var(--side); background:linear-gradient(180deg,var(--brand),var(--brand2)); color:#fff; padding-top:24px; }
+    .mobile-head { display:none; }
+    .menu-btn { border:1px solid rgba(255,255,255,.45); background:transparent; color:#fff; border-radius:8px; padding:6px 10px; font-size:18px; }
+    .sidebar h2 { text-align:center; margin:0 0 14px; }
+    .brand-logo { width:92px; height:auto; display:block; margin:0 auto 12px; filter:drop-shadow(0 10px 14px rgba(0,0,0,.2)); }
+    .nav-links a { display:block; color:#fff; text-decoration:none; padding:13px 24px; transition:background .2s ease, transform .2s ease; }
+    .nav-links a.active,.nav-links a:hover { background:rgba(255,255,255,.15); }
+    .main { margin-left:var(--side); padding:22px; }
+    .top { background:#fff; border-radius:var(--radius); box-shadow:var(--shadow); padding:16px 18px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+    .title h2 { margin:0; color:var(--brand); }
+    .title p { margin:6px 0 0; color:#6b7280; font-size:13px; }
+    .logout { border:0; background:linear-gradient(135deg,var(--brand),var(--brand2)); color:#fff; border-radius:999px; padding:9px 14px; cursor:pointer; }
+
+    .cards { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:14px; margin-bottom:14px; }
+    .card { background:#fff; border-radius:var(--radius); box-shadow:var(--shadow); padding:18px; text-decoration:none; color:inherit; display:block; transition:transform .2s ease, box-shadow .2s ease; }
+    .card:hover { transform:translateY(-3px); box-shadow:0 14px 28px rgba(15,23,42,.12); }
+    .card h3 { margin:0; color:#6b7280; font-size:14px; }
+    .card h2 { margin:10px 0 0; color:var(--brand); font-size:32px; }
+    .small { margin-top:8px; color:#64748b; font-size:12px; }
+
+    .progress-box { background:#fff; border-radius:var(--radius); box-shadow:var(--shadow); padding:16px; }
+    .progress-box h3 { margin:0 0 10px; color:var(--brand); }
+    .progress-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+    .progress-item { background:#f8faff; border:1px solid #e2e8f0; border-radius:10px; padding:10px; }
+    .progress-item .label { font-size:12px; color:#475569; }
+    .progress-item .value { margin-top:6px; font-size:24px; color:var(--brand); font-weight:700; }
+
+    .employee-progress { margin-top:14px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+    .emp-card { background:#fff; border-radius:10px; border:1px solid #e2e8f0; padding:12px; }
+    .emp-card h4 { margin:0 0 8px; color:#1e293b; font-size:15px; }
+    .emp-row { font-size:13px; color:#475569; margin:3px 0; }
+
+    @media (max-width:1100px){ .cards{grid-template-columns:repeat(2,minmax(0,1fr));} .progress-grid{grid-template-columns:repeat(2,minmax(0,1fr));} .employee-progress{grid-template-columns:1fr 1fr;} }
+    @media (max-width:700px){
+      .sidebar{position:static;width:100%;height:auto;padding:8px 10px;}
+      .sidebar h2{display:none;}
+      .mobile-head{display:flex;align-items:center;justify-content:space-between;padding:2px 2px 8px;}
+      .mobile-head .brand{font-size:18px;font-weight:700;}
+      .nav-links{display:none;flex-direction:column;gap:6px;background:rgba(255,255,255,.12);border-radius:10px;padding:8px;}
+      .sidebar.open .nav-links{display:flex;}
+      .nav-links a{padding:10px 10px;border-radius:8px;}
+      .main{margin-left:0;padding:12px;}
+      .cards,.progress-grid,.employee-progress{grid-template-columns:1fr;}
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="mobile-head">
+      <div class="brand">MSL CRM</div>
+      <button class="menu-btn" type="button" onclick="toggleMenu()">☰</button>
+    </div>
+    <img class="brand-logo" src="assets/meridian-logo.svg" alt="Meridian logo" />
+    <h2>MSL CRM</h2>
+    <nav class="nav-links">
+      <a class="active" href="dashboard.html">Dashboard</a>
+      <a href="schools.html">Schools</a>
+      <a id="employeesNav" href="employees.html">Employees</a>
+      <a id="reminderNav" href="reminders.html">Reminders</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <section class="top">
+      <div class="title">
+        <h2 id="greeting">Welcome</h2>
+        <p>Professional CRM summary view</p>
+      </div>
+      <button class="logout" onclick="logout()">Logout</button>
+    </section>
+
+    <section class="cards">
+      <a class="card" href="schools.html?view=total"><h3>Total Visited Schools</h3><h2 id="visitedSchools">0</h2><div class="small">Click to open all visited schools</div></a>
+      <a class="card" href="schools.html?view=today"><h3>Today Follow-Ups</h3><h2 id="todayFollowups">0</h2><div class="small" id="todayRule">By role cutoff rule</div></a>
+      <a class="card" href="schools.html?view=high"><h3>High Interest Schools</h3><h2 id="highInterest">0</h2><div class="small">Click for high chance list</div></a>
+      <a class="card" href="schools.html?view=upcoming"><h3>Upcoming Follow-Ups</h3><h2 id="upcomingFollowups">0</h2><div class="small">Tomorrow planned visits</div></a>
+      <a class="card" href="schools.html?view=overdue"><h3>Overdue Follow-Ups</h3><h2 id="overdueFollowups">0</h2><div class="small">Pending missed follow-ups</div></a>
+    </section>
+
+    <section class="progress-box">
+      <h3 id="progressTitle">Progress</h3>
+      <div class="progress-grid" id="progressGrid"></div>
+      <div class="employee-progress" id="employeeProgress" style="display:none"></div>
+    </section>
+  </main>
+
+  <script>
+    const API = 'https://script.google.com/macros/s/AKfycbxC-Bee0hzkxAdBvgBxniEv7J9R8PvUoA8hWw7sSfu4HNqbNeE2btz3lVH4mMUv_hrv/exec';
+    const role = (localStorage.getItem('role') || '').toLowerCase();
+    const employee = localStorage.getItem('employee') || '';
+    const name = localStorage.getItem('name') || '';
+
+    const greetingEl = document.getElementById('greeting');
+    const employeesNavEl = document.getElementById('employeesNav');
+    const todayRuleEl = document.getElementById('todayRule');
+    const visitedSchoolsEl = document.getElementById('visitedSchools');
+    const todayFollowupsEl = document.getElementById('todayFollowups');
+    const highInterestEl = document.getElementById('highInterest');
+    const upcomingFollowupsEl = document.getElementById('upcomingFollowups');
+    const overdueFollowupsEl = document.getElementById('overdueFollowups');
+    const progressTitleEl = document.getElementById('progressTitle');
+    const progressGridEl = document.getElementById('progressGrid');
+    const employeeProgressEl = document.getElementById('employeeProgress');
+    const sidebarEl = document.querySelector('.sidebar');
+
+    if (!employee && !name) window.location = 'index.html';
+
+    greetingEl.innerText = `Welcome ${name || employee} 👋`;
+    const reminderNavEl = document.getElementById('reminderNav');
+    if (role !== 'admin') { employeesNavEl.style.display = 'none'; reminderNavEl.style.display = 'none'; }
+
+    const normalize = (v) => String(v || '').trim().toLowerCase();
+    const pick = (row, keys) => {
+      for (const k of keys) {
+        if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') return row[k];
+      }
+      return '';
+    };
+    const dateOnly = (v) => {
+      const t = String(v || '').trim();
+      if (!t) return '';
+      return t.includes('T') ? t.split('T')[0] : t;
+    };
+    const isSameEmp = (sheet) => {
+      const s = normalize(sheet);
+      return s === normalize(employee) || s === normalize(name) || s.includes(normalize(employee)) || s.includes(normalize(name));
+    };
+
+    function todayTargetDate() {
+      const now = new Date();
+      const cutoff = role === 'admin' ? 18 : 20;
+      const d = new Date(now);
+      if (now.getHours() >= cutoff) d.setDate(d.getDate() + 1);
+      return d.toISOString().split('T')[0];
+    }
+
+    function statBox(label, value) {
+      return `<div class="progress-item"><div class="label">${label}</div><div class="value">${value}</div></div>`;
+    }
+
+    todayRuleEl.innerText = role === 'admin'
+      ? 'Admin switches to tomorrow after 6:00 PM'
+      : 'Employee switches to tomorrow after 8:00 PM';
+
+    async function load() {
+      const res = await fetch(API);
+      const data = await res.json();
+      const today = todayTargetDate();
+      const actualToday = new Date().toISOString().split('T')[0];
+      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      let total = 0, todayF = 0, high = 0, up = 0, over = 0;
+
+      const byEmployee = {};
+
+      data.forEach((row) => {
+        const school = pick(row, ['school', 'School Name', 'School']);
+        if (!school) return;
+
+        const emp = pick(row, ['Employee Name', 'employee', 'employeeName']) || 'Unassigned';
+        const follow = dateOnly(pick(row, ['followDate', 'Follow Up Date', 'Follow-Up Date']));
+        const chance = pick(row, ['chance', 'Conversion Chance']);
+
+        if (!byEmployee[emp]) byEmployee[emp] = { total:0, today:0, high:0, upcoming:0, overdue:0 };
+
+        byEmployee[emp].total++;
+        if (follow === today) byEmployee[emp].today++;
+        if (follow === tomorrow) byEmployee[emp].upcoming++;
+        if (follow && follow < actualToday) byEmployee[emp].overdue++;
+        if (normalize(chance).includes('high')) byEmployee[emp].high++;
+
+        if (role !== 'admin' && !isSameEmp(emp)) return;
+
+        total++;
+        if (follow === today) todayF++;
+        if (follow === tomorrow) up++;
+        if (follow && follow < actualToday) over++;
+        if (normalize(chance).includes('high')) high++;
+      });
+
+      visitedSchoolsEl.innerText = total;
+      todayFollowupsEl.innerText = todayF;
+      highInterestEl.innerText = high;
+      upcomingFollowupsEl.innerText = up;
+      overdueFollowupsEl.innerText = over;
+
+      const completion = total ? Math.max(0, Math.round(((total - over) / total) * 100)) : 0;
+      progressGridEl.innerHTML = [
+        statBox('Visited', total),
+        statBox('Today Target', todayF),
+        statBox('Overdue', over),
+        statBox('Completion %', `${completion}%`)
+      ].join('');
+
+      if (role === 'admin') {
+        progressTitleEl.innerText = 'Admin Progress Overview';
+        employeeProgressEl.style.display = 'grid';
+        employeeProgressEl.innerHTML = Object.keys(byEmployee)
+          .sort((a,b)=>a.localeCompare(b))
+          .map((emp)=>{
+            const s = byEmployee[emp];
+            const donePct = s.total ? Math.max(0, Math.round(((s.total - s.overdue) / s.total) * 100)) : 0;
+            return `<article class="emp-card"><h4>${emp}</h4><div class="emp-row">Visited: <b>${s.total}</b></div><div class="emp-row">Today: <b>${s.today}</b></div><div class="emp-row">High Interest: <b>${s.high}</b></div><div class="emp-row">Overdue: <b>${s.overdue}</b></div><div class="emp-row">Completion: <b>${donePct}%</b></div></article>`;
+          }).join('');
+      } else {
+        progressTitleEl.innerText = 'My Progress';
+        employeeProgressEl.style.display = 'none';
+      }
+    }
+
+    load().catch(console.error);
+
+    function logout() {
+      localStorage.clear();
+      window.location = 'index.html';
+    }
+
+    function toggleMenu() {
+      sidebarEl.classList.toggle('open');
+    }
+
+    document.querySelectorAll('.nav-links a').forEach((link) => {
+      link.addEventListener('click', () => sidebarEl.classList.remove('open'));
+    });
+  </script>
+</body>
+</html>

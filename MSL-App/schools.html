@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MSL CRM Schools</title>
+  <style>
+    :root{--brand:#1012a8;--brand2:#4f6bff;--bg:#f1f3ff;--radius:12px;--shadow:0 10px 25px rgba(0,0,0,.08);--side:230px}
+    *{box-sizing:border-box} body{margin:0;font-family:'Segoe UI',sans-serif;background:var(--bg)}
+    .sidebar{position:fixed;left:0;top:0;height:100vh;width:var(--side);background:linear-gradient(180deg,var(--brand),var(--brand2));color:#fff;padding-top:24px}
+    .mobile-head{display:none}.menu-btn{border:1px solid rgba(255,255,255,.45);background:transparent;color:#fff;border-radius:8px;padding:6px 10px;font-size:18px}
+    .sidebar h2{text-align:center;margin:0 0 24px}.nav-links a{display:block;color:#fff;text-decoration:none;padding:13px 24px;transition:background .2s ease,transform .2s ease}.nav-links a.active,.nav-links a:hover{background:rgba(255,255,255,.15)}
+    .main{margin-left:var(--side);padding:22px}.top{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+    .title h2{margin:0;color:var(--brand)} .title p{margin:6px 0 0;color:#6b7280;font-size:13px}
+    .controls{display:flex;gap:8px;flex-wrap:wrap}.controls input,.controls select{padding:9px 12px;border-radius:10px;border:1px solid #d4d4d8}
+        .table-wrap{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}.scroll{overflow:auto}
+    table{width:100%;border-collapse:collapse;min-width:1200px} th{background:linear-gradient(90deg,var(--brand),var(--brand2));color:#fff;padding:12px;text-align:left} td{padding:12px;border-bottom:1px solid #eee;vertical-align:top}
+    .alert-row{background:#fff4f4}.badge{padding:4px 8px;border-radius:999px;font-size:12px}.b-over{background:#fee2e2;color:#991b1b}.b-up{background:#dbeafe;color:#1e40af}
+    .wa{display:inline-block;padding:7px 10px;border-radius:8px;background:#16a34a;color:#fff;text-decoration:none;font-size:12px;font-weight:600}
+    @media (max-width:700px){.sidebar{position:static;width:100%;height:auto;padding:8px 10px}.sidebar h2{display:none}.mobile-head{display:flex;align-items:center;justify-content:space-between;padding:2px 2px 8px}.mobile-head .brand{font-size:18px;font-weight:700}.nav-links{display:none;flex-direction:column;gap:6px;background:rgba(255,255,255,.12);border-radius:10px;padding:8px}.sidebar.open .nav-links{display:flex}.nav-links a{padding:10px;border-radius:8px}.main{margin-left:0;padding:12px}}
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="mobile-head">
+      <div class="brand">MSL CRM</div>
+      <button class="menu-btn" type="button" onclick="toggleMenu()">☰</button>
+    </div>
+    <h2>MSL CRM</h2>
+    <nav class="nav-links">
+      <a href="dashboard.html">Dashboard</a>
+      <a class="active" href="schools.html">Schools</a>
+      <a id="employeesNav" href="employees.html">Employees</a>
+      <a id="reminderNav" href="reminders.html">Reminders</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <section class="top">
+      <div class="title"><h2 id="pageTitle">Schools</h2><p id="ruleText"></p></div>
+      <div class="controls">
+        <input id="search" placeholder="Search school/address/category" onkeyup="render()" />
+        <select id="employeeFilter" onchange="render()" style="display:none"></select>
+        
+      </div>
+    </section>
+
+    <section class="table-wrap"><div class="scroll">
+      <table>
+        <thead><tr>
+          <th>School</th><th>Address</th><th>Date of Visit</th><th>Chance</th><th>Follow-Up</th><th>Category</th><th>Demo</th><th>Status</th><th id="empHead" style="display:none">Employee</th><th id="waHead" style="display:none">WhatsApp</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div></section>
+  </main>
+
+<script>
+const API='https://script.google.com/macros/s/AKfycbxC-Bee0hzkxAdBvgBxniEv7J9R8PvUoA8hWw7sSfu4HNqbNeE2btz3lVH4mMUv_hrv/exec';
+const role=(localStorage.getItem('role')||'').toLowerCase();
+const employee=(localStorage.getItem('employee')||'');
+const name=(localStorage.getItem('name')||'');
+if(!employee&&!name) window.location='index.html';
+
+const employeesNavEl=document.getElementById('employeesNav');
+const reminderNavEl=document.getElementById('reminderNav');
+const pageTitleEl=document.getElementById('pageTitle');
+const ruleTextEl=document.getElementById('ruleText');
+const searchEl=document.getElementById('search');
+const employeeFilterEl=document.getElementById('employeeFilter');
+const empHeadEl=document.getElementById('empHead');
+const waHeadEl=document.getElementById('waHead');
+const rowsEl=document.getElementById('rows');
+const sidebarEl=document.querySelector('.sidebar');
+
+if(role!=='admin'){employeesNavEl.style.display='none';reminderNavEl.style.display='none';}
+
+const params=new URLSearchParams(location.search);
+const view=params.get('view')||'total';
+const selectedByQuery=params.get('employee')||'all';
+const all=[];
+
+const normalize=v=>String(v||'').trim().toLowerCase();
+const pick=(r,keys)=>{for(const k of keys){if(r[k]!==undefined&&r[k]!==null&&String(r[k]).trim()!=='') return r[k]} return ''};
+const d=v=>{const t=String(v||'').trim(); if(!t) return ''; return t.includes('T')?t.split('T')[0]:t};
+const t=v=>{const x=String(v||'').trim(); if(!x||!x.includes('T')) return ''; return x.split('T')[1].replace('Z','').slice(0,5)};
+const sameEmp=sheet=>{const s=normalize(sheet); return s===normalize(employee)||s===normalize(name)||s.includes(normalize(employee))||s.includes(normalize(name));};
+const phone=v=>String(v||'').replace(/[^\d]/g,'');
+const todayReal=()=>new Date().toISOString().split('T')[0];
+const tomorrow=()=>new Date(Date.now()+86400000).toISOString().split('T')[0];
+const targetToday=()=>{const now=new Date(); const cutoff=role==='admin'?18:20; const x=new Date(now); if(now.getHours()>=cutoff) x.setDate(x.getDate()+1); return x.toISOString().split('T')[0];};
+const isRealEmployee = (emp) => {
+  const e = normalize(emp);
+  return e && e !== 'unassigned' && e !== '-';
+};
+
+function statusTag(f){
+  if(!f) return '';
+  if(f<todayReal()) return '<span class="badge b-over">Overdue</span>';
+  if(f===tomorrow()) return '<span class="badge b-up">Tomorrow</span>';
+  return '';
+}
+
+function wa(entry){
+  const msg=`Hello ${entry.emp||'Team'},%0AReminder to visit school.%0ASchool: ${entry.school}%0AAddress: ${entry.address||'-'}%0AFollow-Up: ${entry.follow||'-'} ${entry.followTime||''}%0ASchool Contact: ${entry.contact||'-'}%0AReason: ${entry.reason||entry.cat||'Follow-up visit'}`;
+  const num=phone(entry.empPhone);
+  return `<a class="wa" target="_blank" rel="noopener" href="${num?`https://wa.me/${num}?text=${msg}`:`https://wa.me/?text=${msg}`}">Send</a>`;
+}
+
+function applyView(list){
+  const td=targetToday();
+  if(view==='today') return list.filter(x=>x.follow===td);
+  if(view==='high') return list.filter(x=>normalize(x.chance).includes('high'));
+  if(view==='upcoming') return list.filter(x=>x.follow===tomorrow());
+  if(view==='overdue') return list.filter(x=>x.follow && x.follow<todayReal());
+  return list;
+}
+
+function setTitle(){
+  const map={total:'All Visited Schools',today:'Today Follow-Up List',high:'High Interest Schools',upcoming:'Tomorrow Follow-Ups',overdue:'Overdue Pending Schools'};
+  pageTitleEl.innerText=map[view]||'Schools';
+  ruleTextEl.innerText= role==='admin' ? 'Admin today-follow-up cutoff: 6:00 PM' : 'Employee today-follow-up cutoff: 8:00 PM';
+}
+
+function buildEmployeeFilter() {
+  if (role !== 'admin') {
+    employeeFilterEl.style.display = 'none';
+    return;
+  }
+
+  const employees = [...new Set(all.map(x=>x.emp).filter(isRealEmployee))].sort((a,b)=>a.localeCompare(b));
+  employeeFilterEl.style.display = 'inline-block';
+  employeeFilterEl.innerHTML = '<option value="all">All</option>' + employees.map(e=>`<option value="${e}">${e}</option>`).join('');
+  if (selectedByQuery !== 'all' && employees.includes(selectedByQuery)) {
+    employeeFilterEl.value = selectedByQuery;
+  }
+}
+
+function render(){
+  let list=[...all];
+  if(role!=='admin') list=list.filter(x=>sameEmp(x.emp));
+  if(role==='admin') {
+    const selectedEmp = employeeFilterEl.value || 'all';
+    if(selectedEmp!=='all') list=list.filter(x=>x.emp===selectedEmp);
+  }
+
+  list=applyView(list);
+  const q=normalize(searchEl.value);
+  if(q) list=list.filter(x=>normalize(x.school).includes(q)||normalize(x.address).includes(q)||normalize(x.cat).includes(q)||normalize(x.emp).includes(q));
+
+  rowsEl.innerHTML='';
+  if(!list.length){
+    rowsEl.innerHTML=`<tr><td colspan="${role==='admin'?10:8}" style="text-align:center;color:#6b7280">No records found.</td></tr>`;
+    return;
+  }
+
+  empHeadEl.style.display = role==='admin' ? 'table-cell':'none';
+  waHeadEl.style.display = role==='admin' ? 'table-cell':'none';
+
+  list.forEach(x=>{
+    const isOver=x.follow&&x.follow<todayReal();
+    rowsEl.insertAdjacentHTML('beforeend',`<tr class="${isOver?'alert-row':''}">
+      <td><a href="school.html?name=${encodeURIComponent(x.school)}">${x.school}</a></td>
+      <td>${x.address||''}</td>
+      <td>${x.visit||''}</td>
+      <td>${x.chance||''}</td>
+      <td>${x.follow||''} ${x.followTime||''}</td>
+      <td>${x.cat||''}</td>
+      <td>${x.demo||''}</td>
+      <td>${statusTag(x.follow)}</td>
+      ${role==='admin'?`<td>${x.emp||'-'}</td><td>${wa(x)}</td>`:''}
+    </tr>`);
+  });
+}
+
+async function load(){
+  setTitle();
+  const res=await fetch(API);
+  const data=await res.json();
+  all.length=0;
+
+  data.forEach(r=>{
+    const school=pick(r,['school','School Name','School']);
+    if(!school) return;
+    const followRaw=pick(r,['followDate','Follow Up Date','Follow-Up Date']);
+    all.push({
+      school,
+      address:pick(r,['address','Area','schoolAddress']),
+      visit:d(pick(r,['Date of Visit','visitDate','dateOfVisit'])),
+      chance:pick(r,['chance','Conversion Chance']),
+      follow:d(followRaw),
+      followTime:t(followRaw),
+      cat:pick(r,['visitCategory','Visit Category']),
+      demo:pick(r,['Demo','demo','Demo Happened']),
+      emp:pick(r,['Employee Name','employee','employeeName']),
+      empPhone:pick(r,['Employee Phone','employeePhone','Employee Contact','employeeContact','Phone Number']),
+      contact:pick(r,['School Contact','contact','phone','Phone']),
+      reason:pick(r,['reason','Reason','Visit Reason'])
+    });
+  });
+
+  buildEmployeeFilter();
+  render();
+}
+
+load().catch(()=>{ rowsEl.innerHTML='<tr><td colspan="10" style="text-align:center">Unable to load data.</td></tr>'; });
+
+function toggleMenu(){ sidebarEl.classList.toggle('open'); }
+document.querySelectorAll('.nav-links a').forEach((link)=>link.addEventListener('click',()=>sidebarEl.classList.remove('open')));
+</script>
+</body>
+</html>
