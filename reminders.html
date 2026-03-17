@@ -70,10 +70,10 @@ const dayStr = tomorrow.toLocaleDateString('en-US',{weekday:'long'});
 
 function buildCompiledMessage(employee, items){
   const lines=[];
-  lines.push(`Good Evening Marketing Team, Demo bookings for ${dateStr}, ${dayStr} -`);
+  lines.push(`Hello Marketing Team, Here are your Followups for tomorrow ${dateStr}, ${dayStr} -`);
   lines.push('');
   items.forEach((it,idx)=>{
-    lines.push(`DEMO ${idx+1}-`);
+    lines.push(`Followup ${idx+1}-`);
     lines.push(`Product - ${it.product||'Science Lab Kit'}`);
     lines.push(`School name - ${it.school||'-'}`);
     lines.push(`Follow-up Date - ${it.followDate||tomorrowDate}`);
