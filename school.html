@@ -113,6 +113,18 @@
       padding: 12px;
     }
 
+    .followup-block { margin-top: 22px; }
+    .more-btn {
+      margin-top: 10px;
+      border: 0;
+      background: var(--brand);
+      color: #fff;
+      border-radius: 8px;
+      padding: 9px 14px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
     @media (max-width: 900px) {
       .info { grid-template-columns: 1fr; }
     }
@@ -215,10 +227,36 @@
         </table>
       </div>
     </div>
+
+    <section class="followup-block">
+      <h3>Follow-Up History</h3>
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Date of Follow Up</th>
+                <th>Response</th>
+                <th>Product</th>
+                <th>Next Follow Up Date</th>
+              </tr>
+            </thead>
+            <tbody id="followupTable"></tbody>
+          </table>
+        </div>
+      </div>
+      <button id="showMoreFollowups" class="more-btn" type="button" style="display:none" onclick="showMoreFollowups()">Show more</button>
+    </section>
   </div>
 
   <script>
     const API = 'https://script.google.com/macros/s/AKfycbxC-Bee0hzkxAdBvgBxniEv7J9R8PvUoA8hWw7sSfu4HNqbNeE2btz3lVH4mMUv_hrv/exec';
+    const FOLLOWUP_API = 'https://docs.google.com/spreadsheets/d/1-vOj_dmDZ1JwOv1JHdlP8APCV-cjHeI3K3kimSempEM/gviz/tq?gid=380886453&tqx=out:json';
+    const API_CACHE_KEY = 'msl_api_cache_v1';
+    const API_CACHE_TTL_MS = 120000;
+    const FOLLOWUP_CACHE_KEY = 'msl_followup_cache_v1';
+    const FOLLOWUP_CACHE_TTL_MS = 120000;
 
     const role = (localStorage.getItem('role') || '').toLowerCase();
     const employee = localStorage.getItem('employee') || '';
@@ -234,11 +272,14 @@
 
     const params = new URLSearchParams(window.location.search);
     const schoolParam = decodeURIComponent(params.get('name') || '').trim();
-    const schoolFilter = schoolParam.toLowerCase();
     document.getElementById('schoolName').innerText = schoolParam || 'School Profile';
 
     const normalize = (value) => String(value || '').trim().toLowerCase();
+    const normalizedKey = (value) => normalize(value).replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
     const toDateOnly = (value) => {
+      if (value instanceof Date) return value.toISOString().split('T')[0];
+      if (value && typeof value === 'object' && typeof value.getFullYear === 'function') return value.toISOString().split('T')[0];
+
       const txt = String(value || '').trim();
       if (!txt) return '';
       return txt.includes('T') ? txt.split('T')[0] : txt;
@@ -260,13 +301,64 @@
       return sheet === localUser || sheet === localName || sheet.includes(localUser) || sheet.includes(localName);
     };
 
+    function isSameSchool(a, b) {
+      const x = normalizedKey(a);
+      const y = normalizedKey(b);
+      if (!x || !y) return false;
+
+      if (x === y || x.includes(y) || y.includes(x)) return true;
+
+      const yTokens = y.split(' ').filter(Boolean);
+      if (!yTokens.length) return false;
+      return yTokens.every((token) => x.includes(token));
+    }
+
+    function toArrayPayload(raw) {
+      if (Array.isArray(raw)) return raw;
+      if (raw && Array.isArray(raw.data)) return raw.data;
+      if (raw && Array.isArray(raw.rows)) return raw.rows;
+      if (raw && raw.result && Array.isArray(raw.result)) return raw.result;
+      return [];
+    }
+
+    function getCachedJson(key, ttlMs) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        const payload = JSON.parse(raw);
+        if (!payload || !payload.ts || !payload.data) return null;
+        if (Date.now() - payload.ts > ttlMs) return null;
+        return payload.data;
+      } catch (_e) {
+        return null;
+      }
+    }
+
+    function setCachedJson(key, data) {
+      try {
+        localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }));
+      } catch (_e) {
+        // ignore cache write errors
+      }
+    }
+
+    async function getMainData() {
+      const cached = getCachedJson(API_CACHE_KEY, API_CACHE_TTL_MS);
+      if (cached) return cached;
+
+      const res = await fetch(API);
+      const raw = await res.json();
+      const data = toArrayPayload(raw);
+      setCachedJson(API_CACHE_KEY, data);
+      return data;
+    }
+
     async function loadSchool() {
       const table = document.getElementById('visitTable');
       table.innerHTML = '';
 
       try {
-        const res = await fetch(API);
-        const data = await res.json();
+        const data = await getMainData();
         let count = 0;
 
         data.forEach((row) => {
@@ -280,7 +372,7 @@
           const response = pick(row, ['Final Response', 'Customer Response']);
           const rowEmployee = pick(row, ['Employee Name', 'employee', 'employeeName']);
 
-          if (!normalize(school).includes(schoolFilter)) return;
+          if (!isSameSchool(school, schoolParam)) return;
           if (role !== 'admin' && !isSameEmployee(rowEmployee)) return;
 
           if (count === 0) {
@@ -316,7 +408,160 @@
       }
     }
 
+    let followups = [];
+    let followupVisible = 3;
+
+    function parseGvizDate(raw) {
+      const txt = String(raw || '').trim();
+      const match = txt.match(/^Date\((\d+),(\d+),(\d+)(?:,(\d+),(\d+),(\d+))?\)$/);
+      if (!match) return txt;
+
+      const y = Number(match[1]);
+      const m = Number(match[2]);
+      const d = Number(match[3]);
+      const hh = Number(match[4] || 0);
+      const mm = Number(match[5] || 0);
+      const ss = Number(match[6] || 0);
+      const dt = new Date(y, m, d, hh, mm, ss);
+      return dt.toISOString().split('T')[0];
+    }
+
+    function cellValue(cell) {
+      if (!cell) return '';
+      if (cell.f && String(cell.f).trim() !== '') return String(cell.f).trim();
+      if (cell.v === null || cell.v === undefined) return '';
+
+      if (typeof cell.v === 'string' && cell.v.startsWith('Date(')) return parseGvizDate(cell.v);
+      if (cell.v instanceof Date) return toDateOnly(cell.v);
+      if (typeof cell.v === 'number') return String(cell.v);
+      return String(cell.v).trim();
+    }
+
+    function renderFollowups() {
+      const table = document.getElementById('followupTable');
+      const moreBtn = document.getElementById('showMoreFollowups');
+      table.innerHTML = '';
+
+      if (!followups.length) {
+        table.innerHTML = '<tr class="empty-row"><td colspan="5" class="empty-state">No follow-up history found.</td></tr>';
+        moreBtn.style.display = 'none';
+        return;
+      }
+
+      followups.slice(0, followupVisible).forEach((item) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td data-label="Method">${item.method || '-'}</td>
+          <td data-label="Date of Follow Up">${item.date || '-'}</td>
+          <td data-label="Response">${item.response || '-'}</td>
+          <td data-label="Product">${item.product || '-'}</td>
+          <td data-label="Next Follow Up Date">${item.nextDate || '-'}</td>
+        `;
+        table.appendChild(tr);
+      });
+
+      moreBtn.style.display = followupVisible < followups.length ? 'inline-block' : 'none';
+    }
+
+    function showMoreFollowups() {
+      followupVisible += 3;
+      renderFollowups();
+    }
+
+    function parseGvizText(text) {
+      const raw = String(text || '').trim();
+      const start = raw.indexOf('{');
+      const end = raw.lastIndexOf('}');
+      if (start === -1 || end === -1 || end <= start) {
+        throw new Error('Invalid followup response format');
+      }
+      return JSON.parse(raw.slice(start, end + 1));
+    }
+
+    async function getFollowupParsedData() {
+      const cached = getCachedJson(FOLLOWUP_CACHE_KEY, FOLLOWUP_CACHE_TTL_MS);
+      if (cached) return cached;
+
+      let parsed;
+      try {
+        const res = await fetch(FOLLOWUP_API);
+        const txt = await res.text();
+        parsed = parseGvizText(txt);
+      } catch (_fetchError) {
+        parsed = await loadFollowupsJsonp();
+      }
+
+      setCachedJson(FOLLOWUP_CACHE_KEY, parsed);
+      return parsed;
+    }
+
+    function loadFollowupsJsonp() {
+      return new Promise((resolve, reject) => {
+        const cbName = `followupCb_${Date.now()}`;
+        const timeout = setTimeout(() => {
+          delete window[cbName];
+          reject(new Error('Follow-up request timed out.'));
+        }, 12000);
+
+        window[cbName] = (payload) => {
+          clearTimeout(timeout);
+          delete window[cbName];
+          resolve(payload);
+        };
+
+        const tqx = encodeURIComponent(`out:json;responseHandler:${cbName}`);
+        const script = document.createElement('script');
+        script.src = `https://docs.google.com/spreadsheets/d/1-vOj_dmDZ1JwOv1JHdlP8APCV-cjHeI3K3kimSempEM/gviz/tq?gid=380886453&tqx=${tqx}`;
+        script.async = true;
+        script.onerror = () => {
+          clearTimeout(timeout);
+          delete window[cbName];
+          reject(new Error('Unable to load Followup sheet script.'));
+        };
+
+        document.body.appendChild(script);
+      });
+    }
+
+    async function loadFollowups() {
+      const table = document.getElementById('followupTable');
+      table.innerHTML = '<tr class="empty-row"><td colspan="5" class="empty-state">Loading follow-up data...</td></tr>';
+
+      try {
+        const parsed = await getFollowupParsedData();
+
+        const rows = parsed && parsed.table && Array.isArray(parsed.table.rows) ? parsed.table.rows : [];
+
+        followups = rows
+          .map((row) => {
+            const cells = row.c || [];
+            return {
+              timestamp: cellValue(cells[0]),
+              school: cellValue(cells[1]),
+              method: cellValue(cells[2]),
+              date: toDateOnly(parseGvizDate(cellValue(cells[3]))),
+              response: cellValue(cells[4]),
+              product: cellValue(cells[5]),
+              nextDate: toDateOnly(parseGvizDate(cellValue(cells[6])))
+            };
+          })
+          .filter((item) => isSameSchool(item.school, schoolParam))
+          .sort((a, b) => {
+            const aKey = a.timestamp || a.date || '';
+            const bKey = b.timestamp || b.date || '';
+            return String(bKey).localeCompare(String(aKey));
+          });
+
+        followupVisible = 3;
+        renderFollowups();
+      } catch (error) {
+        console.error('Failed to load follow-up data:', error);
+        table.innerHTML = '<tr class="empty-row"><td colspan="5" class="empty-state">Unable to load follow-up data. Please set Followup sheet sharing to "Anyone with the link - Viewer".</td></tr>';
+      }
+    }
+
     loadSchool();
+    loadFollowups();
 
     function goBack() {
       window.location = 'schools.html';
