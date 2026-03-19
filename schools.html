@@ -30,6 +30,8 @@
     .b-over { background:#fee2e2; color:#991b1b; }
     .b-up { background:#dbeafe; color:#1e40af; }
     .wa { display:inline-block; padding:7px 10px; border-radius:8px; background:#16a34a; color:#fff; text-decoration:none; font-size:12px; font-weight:600; }
+    .loading-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.88); display:flex; justify-content:center; align-items:center; z-index:1000; font-size:1.2rem; color:#1012a8; font-weight:700; visibility:hidden; opacity:0; transition:opacity .2s ease, visibility .2s ease; }
+    .loading-overlay.show { visibility:visible; opacity:1; }
     @media (max-width:700px){
       .sidebar{position:static;width:100%;height:auto;padding:8px 10px}
       .sidebar h2{display:none}
@@ -43,6 +45,7 @@
   </style>
 </head>
 <body>
+  <div id="loadingOverlay" class="loading-overlay">Loading data…</div>
   <aside class="sidebar">
     <div class="mobile-head">
       <div class="brand">MSL CRM</div>
@@ -96,6 +99,10 @@ const empHeadEl = document.getElementById('empHead');
 const waHeadEl = document.getElementById('waHead');
 const rowsEl = document.getElementById('rows');
 const sidebarEl = document.querySelector('.sidebar');
+const loadingOverlay = document.getElementById('loadingOverlay');
+
+const showLoading = () => loadingOverlay.classList.add('show');
+const hideLoading = () => loadingOverlay.classList.remove('show');
 
 if (role !== 'admin') {
   employeesNavEl.style.display = 'none';
@@ -143,6 +150,14 @@ const isRealEmployee = (emp) => {
   return e && e !== 'unassigned' && e !== '-';
 };
 
+const isDemoIncomplete = (demo) => {
+  const d = normalize(demo);
+  if (!d) return true;
+  if (d.includes('no') || d.includes('not') || d.includes('pending') || d.includes('false') || d.includes('n/a')) return true;
+  if (d.includes('yes') || d.includes('done') || d.includes('completed') || d.includes('true')) return false;
+  return true;
+};
+
 const getCachedJson = (key, ttlMs) => {
   try {
     const raw = localStorage.getItem(key);
@@ -184,7 +199,7 @@ function statusTag(followDate) {
 function wa(entry) {
   const msg = [
     `Hello ${entry.emp || 'Team'},`,
-    'Reminder to Followup school.',
+    'Reminder to visit school.',
     `School: ${entry.school}`,
     `Address: ${entry.address || '-'}`,
     `Follow-Up: ${entry.follow || '-'} ${entry.followTime || ''}`,
@@ -202,6 +217,8 @@ function applyView(list) {
   const todayTarget = targetToday();
   if (view === 'today') return list.filter((x) => x.follow === todayTarget);
   if (view === 'high') return list.filter((x) => normalize(x.chance).includes('high'));
+  if (view === 'medium') return list.filter((x) => normalize(x.chance).includes('medium'));
+  if (view === 'demoNotDone') return list.filter((x) => isDemoIncomplete(x.demo));
   if (view === 'upcoming') return list.filter((x) => x.follow === tomorrow());
   if (view === 'overdue') return list.filter((x) => x.follow && x.follow < todayReal());
   return list;
@@ -212,6 +229,8 @@ function setTitle() {
     total: 'All Visited Schools',
     today: 'Today Follow-Up List',
     high: 'High Interest Schools',
+    medium: 'Medium Interest Schools',
+    demoNotDone: 'Demo Not Done Schools',
     upcoming: 'Tomorrow Follow-Ups',
     overdue: 'Overdue Pending Schools'
   };
@@ -275,11 +294,13 @@ function render() {
 }
 
 async function load() {
-  setTitle();
-  const data = await getMainData();
-  all.length = 0;
+  showLoading();
+  try {
+    setTitle();
+    const data = await getMainData();
+    all.length = 0;
 
-  data.forEach((row) => {
+    data.forEach((row) => {
     const school = pick(row, ['school', 'School Name', 'School']);
     if (!school) return;
 
@@ -302,9 +323,13 @@ async function load() {
 
   buildEmployeeFilter();
   render();
+  } finally {
+    hideLoading();
+  }
 }
 
 load().catch(() => {
+  hideLoading();
   rowsEl.innerHTML = '<tr><td colspan="10" style="text-align:center">Unable to load data.</td></tr>';
 });
 
